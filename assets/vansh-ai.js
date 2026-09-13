@@ -1,182 +1,22 @@
 (() => {
-  const MODEL = "Llama-3.2-1B-Instruct-q4f32_1-MLC";
+  const MODEL = "Qwen3-0.6B-q4f16_1-MLC";
   const WEBLLM_URL = "https://esm.run/@mlc-ai/web-llm@0.2.82";
   let engine = null;
   let loadingPromise = null;
   let messages = [];
-
-  const systemPrompt = `You are Vansh AI, the personal AI assistant on Vansh Kesar's portfolio website.
-You are friendly, concise, natural, and helpful. Speak like a smart student, not a corporate chatbot.
-Portfolio context:
-Vansh Kesar is a Computer Intelligence student at SRM Institute of Science & Technology.
-He builds real products using AI, code, and design.
-Featured projects include FixMyWallet, a gamified personal finance platform, and FitPrint, an AI fashion sizing and recommendation platform.
-His portfolio focuses on AI, web development, product building, and design.
-GitHub: github.com/vanshkesar23
-Email: vk6092@srmist.edu.in
-Never invent personal facts about Vansh.
-Do not claim to be ChatGPT or OpenAI. You are Vansh AI, a local open source model running in the visitor's browser.
-Keep answers concise unless the visitor asks for detail.`;
-
-  const css = `
-    .vansh-ai-launcher{position:fixed;right:28px;bottom:28px;z-index:9998;border:1px solid rgba(255,255,255,.18);background:rgba(18,18,18,.88);backdrop-filter:blur(18px);color:#fff;border-radius:999px;padding:13px 18px;display:flex;align-items:center;gap:10px;font:500 13px Inter,Arial,sans-serif;letter-spacing:.02em;cursor:pointer;box-shadow:0 16px 45px rgba(0,0,0,.35);transition:transform .25s ease,border-color .25s ease,background .25s ease}.vansh-ai-launcher:hover{transform:translateY(-3px);border-color:rgba(255,255,255,.4);background:rgba(30,30,30,.95)}
-    .vansh-ai-dot{width:8px;height:8px;border-radius:50%;background:#ff5a46;box-shadow:0 0 14px rgba(255,90,70,.7)}
-    .vansh-ai-panel{position:fixed;right:28px;bottom:86px;width:min(410px,calc(100vw - 32px));height:min(610px,calc(100vh - 115px));z-index:9999;background:rgba(10,10,10,.96);border:1px solid rgba(255,255,255,.14);border-radius:24px;backdrop-filter:blur(24px);box-shadow:0 28px 90px rgba(0,0,0,.55);display:none;overflow:hidden;font-family:Inter,Arial,sans-serif;color:#f5f2ed}.vansh-ai-panel.open{display:flex;flex-direction:column;animation:vanshAiIn .28s ease both}@keyframes vanshAiIn{from{opacity:0;transform:translateY(16px) scale(.98)}to{opacity:1;transform:none}}
-    .vansh-ai-head{padding:18px 18px 14px;border-bottom:1px solid rgba(255,255,255,.09);display:flex;align-items:center;justify-content:space-between}.vansh-ai-title{display:flex;align-items:center;gap:11px}.vansh-ai-avatar{width:38px;height:38px;border-radius:13px;display:grid;place-items:center;background:linear-gradient(135deg,#ff604b,#ff9d76);color:#111;font-weight:700;font-family:Georgia,serif}.vansh-ai-name{font:600 15px Inter,Arial,sans-serif}.vansh-ai-status{font-size:10px;color:#8d8a85;margin-top:3px}.vansh-ai-close{border:0;background:transparent;color:#aaa;font-size:22px;cursor:pointer;width:32px;height:32px;border-radius:50%}.vansh-ai-close:hover{background:rgba(255,255,255,.08);color:#fff}
-    .vansh-ai-messages{flex:1;overflow:auto;padding:18px;display:flex;flex-direction:column;gap:12px}.vansh-ai-msg{max-width:86%;padding:11px 13px;border-radius:16px;font-size:13px;line-height:1.55;white-space:pre-wrap;word-break:break-word}.vansh-ai-msg.ai{align-self:flex-start;background:#181818;border:1px solid rgba(255,255,255,.08)}.vansh-ai-msg.user{align-self:flex-end;background:#f1eee8;color:#111}.vansh-ai-msg.loading{color:#9c9994}.vansh-ai-suggestions{padding:0 18px 10px;display:flex;gap:7px;overflow:auto}.vansh-ai-chip{white-space:nowrap;border:1px solid rgba(255,255,255,.12);background:rgba(255,255,255,.035);color:#c9c5be;border-radius:999px;padding:7px 10px;font-size:11px;cursor:pointer}.vansh-ai-chip:hover{background:rgba(255,255,255,.08);color:#fff}.vansh-ai-form{display:flex;gap:8px;padding:12px;border-top:1px solid rgba(255,255,255,.09)}.vansh-ai-input{flex:1;min-width:0;border:1px solid rgba(255,255,255,.12);outline:0;background:#151515;color:#fff;border-radius:15px;padding:12px 13px;font:13px Inter,Arial,sans-serif}.vansh-ai-input:focus{border-color:rgba(255,255,255,.32)}.vansh-ai-send{border:0;width:44px;border-radius:14px;background:#f1eee8;color:#111;cursor:pointer;font-size:17px}.vansh-ai-send:disabled{opacity:.4;cursor:not-allowed}.vansh-ai-note{font-size:9px;color:#6f6c68;text-align:center;padding:0 12px 9px}.vansh-ai-progress{height:2px;background:rgba(255,255,255,.07);overflow:hidden}.vansh-ai-progress span{display:block;height:100%;width:0;background:#ff604b;transition:width .2s ease}
-    @media(max-width:600px){.vansh-ai-launcher{right:16px;bottom:16px}.vansh-ai-panel{right:10px;bottom:72px;width:calc(100vw - 20px);height:min(650px,calc(100vh - 90px));border-radius:20px}}
-  `;
-
-  function addStyles(){
-    if(document.getElementById("vansh-ai-styles")) return;
-    const style=document.createElement("style");
-    style.id="vansh-ai-styles";
-    style.textContent=css;
-    document.head.appendChild(style);
-  }
-
-  function createUI(){
-    const launcher=document.createElement("button");
-    launcher.className="vansh-ai-launcher";
-    launcher.id="vansh-ai-launcher";
-    launcher.setAttribute("aria-label","Open Vansh AI");
-    launcher.innerHTML='<span class="vansh-ai-dot"></span><span>Vansh AI</span>';
-
-    const panel=document.createElement("section");
-    panel.className="vansh-ai-panel";
-    panel.setAttribute("aria-label","Vansh AI chat");
-    panel.innerHTML=`
-      <div class="vansh-ai-head">
-        <div class="vansh-ai-title">
-          <div class="vansh-ai-avatar">V</div>
-          <div><div class="vansh-ai-name">Vansh AI</div><div class="vansh-ai-status" id="vansh-ai-status">Local open source AI</div></div>
-        </div>
-        <button class="vansh-ai-close" aria-label="Close Vansh AI">×</button>
-      </div>
-      <div class="vansh-ai-progress"><span id="vansh-ai-progress"></span></div>
-      <div class="vansh-ai-messages" id="vansh-ai-messages"></div>
-      <div class="vansh-ai-suggestions">
-        <button class="vansh-ai-chip">Tell me about Vansh</button>
-        <button class="vansh-ai-chip">What has he built?</button>
-        <button class="vansh-ai-chip">Why FitPrint?</button>
-      </div>
-      <form class="vansh-ai-form" id="vansh-ai-form">
-        <input class="vansh-ai-input" id="vansh-ai-input" autocomplete="off" placeholder="Ask Vansh AI anything..." />
-        <button class="vansh-ai-send" id="vansh-ai-send" type="submit" aria-label="Send">↑</button>
-      </form>
-      <div class="vansh-ai-note">Runs locally in your browser with WebLLM and an open source model. First launch downloads the model.</div>
-    `;
-    document.body.append(launcher,panel);
-    return {launcher,panel};
-  }
-
-  function appendMessage(role,text,extraClass=""){
-    const box=document.getElementById("vansh-ai-messages");
-    const item=document.createElement("div");
-    item.className=`vansh-ai-msg ${role} ${extraClass}`.trim();
-    item.textContent=text;
-    box.appendChild(item);
-    box.scrollTop=box.scrollHeight;
-    return item;
-  }
-
-  function setProgress(value,text){
-    const bar=document.getElementById("vansh-ai-progress");
-    const status=document.getElementById("vansh-ai-status");
-    if(bar) bar.style.width=`${Math.max(0,Math.min(100,Math.round(value)))}%`;
-    if(status&&text) status.textContent=text;
-  }
-
-  async function loadModel(){
-    if(engine) return engine;
-    if(loadingPromise) return loadingPromise;
-
-    loadingPromise=(async()=>{
-      setProgress(3,"Loading WebLLM...");
-      const webllm=await import(WEBLLM_URL);
-      setProgress(8,"Preparing local model...");
-
-      engine=await webllm.CreateMLCEngine(MODEL,{
-        initProgressCallback:report=>{
-          const pct=typeof report?.progress==="number"?report.progress:0;
-          setProgress(Math.max(8,pct),report?.text||"Downloading local model...");
-        },
-        logLevel:"ERROR"
-      },{
-        context_window_size:4096,
-        temperature:0.55,
-        top_p:0.9
-      });
-
-      setProgress(100,"Ready · running on your device");
-      setTimeout(()=>setProgress(0,"Ready · running on your device"),800);
-      return engine;
-    })().catch(error=>{
-      engine=null;
-      loadingPromise=null;
-      setProgress(0,"AI could not start · click to retry");
-      console.error("Vansh AI WebLLM error:",error);
-      throw error;
-    });
-
-    return loadingPromise;
-  }
-
-  async function ask(text){
-    const clean=text.trim();
-    const input=document.getElementById("vansh-ai-input");
-    const send=document.getElementById("vansh-ai-send");
-    if(!clean||send.disabled) return;
-
-    appendMessage("user",clean);
-    messages.push({role:"user",content:clean});
-    input.value="";
-    send.disabled=true;
-    const loading=appendMessage("ai","Thinking...","loading");
-
-    try{
-      const model=await loadModel();
-      loading.remove();
-      const response=await model.chat.completions.create({
-        messages:[
-          {role:"system",content:systemPrompt},
-          ...messages.slice(-8)
-        ],
-        max_tokens:220,
-        temperature:0.55,
-        top_p:0.9,
-        stream:false
-      });
-      const answer=response?.choices?.[0]?.message?.content?.trim()||"I'm not sure yet.";
-      appendMessage("ai",answer);
-      messages.push({role:"assistant",content:answer});
-    }catch(error){
-      loading.remove();
-      appendMessage("ai","I couldn't start the local AI on this device. Please refresh once and try again. If WebGPU is unavailable, this browser cannot run the local model.");
-      console.error("Vansh AI generation error:",error);
-    }finally{
-      send.disabled=false;
-      input.focus();
-    }
-  }
-
+  const systemPrompt = `You are Vansh AI, the personal AI assistant on Vansh Kesar's portfolio website. Be friendly, concise, natural, and helpful. Speak like a smart student, not a corporate chatbot. Vansh Kesar is a Computer Intelligence student at SRM Institute of Science & Technology. He builds real products using AI, code, and design. Featured projects include FixMyWallet, a gamified personal finance platform, and FitPrint, an AI fashion sizing and recommendation platform. His portfolio focuses on AI, web development, product building, and design. GitHub: github.com/vanshkesar23. Email: vk6092@srmist.edu.in. Never invent personal facts about Vansh. Do not claim to be ChatGPT or OpenAI. You are Vansh AI, a local open source model running in the visitor's browser. Keep answers short unless asked for detail.`;
+  const css=`.vansh-ai-launcher{position:fixed;right:28px;bottom:28px;z-index:9998;border:1px solid rgba(255,255,255,.18);background:rgba(18,18,18,.88);backdrop-filter:blur(18px);color:#fff;border-radius:999px;padding:13px 18px;display:flex;align-items:center;gap:10px;font:500 13px Inter,Arial,sans-serif;cursor:pointer;box-shadow:0 16px 45px rgba(0,0,0,.35)}.vansh-ai-dot{width:8px;height:8px;border-radius:50%;background:#ff5a46;box-shadow:0 0 14px rgba(255,90,70,.7)}.vansh-ai-panel{position:fixed;right:28px;bottom:86px;width:min(410px,calc(100vw - 32px));height:min(610px,calc(100vh - 115px));z-index:9999;background:rgba(10,10,10,.97);border:1px solid rgba(255,255,255,.14);border-radius:24px;backdrop-filter:blur(24px);box-shadow:0 28px 90px rgba(0,0,0,.55);display:none;overflow:hidden;font-family:Inter,Arial,sans-serif;color:#f5f2ed}.vansh-ai-panel.open{display:flex;flex-direction:column}.vansh-ai-head{padding:18px;border-bottom:1px solid rgba(255,255,255,.09);display:flex;align-items:center;justify-content:space-between}.vansh-ai-title{display:flex;align-items:center;gap:11px}.vansh-ai-avatar{width:38px;height:38px;border-radius:13px;display:grid;place-items:center;background:linear-gradient(135deg,#ff604b,#ff9d76);color:#111;font-weight:700;font-family:Georgia,serif}.vansh-ai-name{font-weight:600;font-size:15px}.vansh-ai-status{font-size:10px;color:#8d8a85;margin-top:3px}.vansh-ai-close{border:0;background:transparent;color:#aaa;font-size:22px;cursor:pointer}.vansh-ai-messages{flex:1;overflow:auto;padding:18px;display:flex;flex-direction:column;gap:12px}.vansh-ai-msg{max-width:86%;padding:11px 13px;border-radius:16px;font-size:13px;line-height:1.55;white-space:pre-wrap;word-break:break-word}.vansh-ai-msg.ai{align-self:flex-start;background:#181818;border:1px solid rgba(255,255,255,.08)}.vansh-ai-msg.user{align-self:flex-end;background:#f1eee8;color:#111}.vansh-ai-msg.loading{color:#9c9994}.vansh-ai-suggestions{padding:0 18px 10px;display:flex;gap:7px;overflow:auto}.vansh-ai-chip{white-space:nowrap;border:1px solid rgba(255,255,255,.12);background:rgba(255,255,255,.035);color:#c9c5be;border-radius:999px;padding:7px 10px;font-size:11px;cursor:pointer}.vansh-ai-form{display:flex;gap:8px;padding:12px;border-top:1px solid rgba(255,255,255,.09)}.vansh-ai-input{flex:1;min-width:0;border:1px solid rgba(255,255,255,.12);outline:0;background:#151515;color:#fff;border-radius:15px;padding:12px 13px;font:13px Inter,Arial,sans-serif}.vansh-ai-send{border:0;width:44px;border-radius:14px;background:#f1eee8;color:#111;cursor:pointer;font-size:17px}.vansh-ai-send:disabled{opacity:.4}.vansh-ai-note{font-size:9px;color:#6f6c68;text-align:center;padding:0 12px 9px}.vansh-ai-progress{height:2px;background:rgba(255,255,255,.07)}.vansh-ai-progress span{display:block;height:100%;width:0;background:#ff604b;transition:width .2s ease}@media(max-width:600px){.vansh-ai-launcher{right:16px;bottom:16px}.vansh-ai-panel{right:10px;bottom:72px;width:calc(100vw - 20px);height:min(650px,calc(100vh - 90px));border-radius:20px}}`;
   function init(){
-    if(document.getElementById("vansh-ai-launcher")) return;
-    addStyles();
-    const {launcher,panel}=createUI();
-    const input=panel.querySelector("#vansh-ai-input");
-    const form=panel.querySelector("#vansh-ai-form");
-    appendMessage("ai","Hey! I'm Vansh AI. Ask me about Vansh, his projects, skills, or the ideas behind this portfolio.");
-
-    launcher.addEventListener("click",()=>{
-      panel.classList.toggle("open");
-      if(panel.classList.contains("open")) input.focus();
-    });
-    panel.querySelector(".vansh-ai-close").addEventListener("click",()=>panel.classList.remove("open"));
-    form.addEventListener("submit",event=>{event.preventDefault();ask(input.value);});
-    panel.querySelectorAll(".vansh-ai-chip").forEach(chip=>chip.addEventListener("click",()=>ask(chip.textContent)));
+    if(document.getElementById("vansh-ai-launcher"))return;
+    const style=document.createElement("style");style.id="vansh-ai-styles";style.textContent=css;document.head.appendChild(style);
+    const launcher=document.createElement("button");launcher.className="vansh-ai-launcher";launcher.id="vansh-ai-launcher";launcher.innerHTML='<span class="vansh-ai-dot"></span><span>Vansh AI</span>';
+    const panel=document.createElement("section");panel.className="vansh-ai-panel";panel.innerHTML=`<div class="vansh-ai-head"><div class="vansh-ai-title"><div class="vansh-ai-avatar">V</div><div><div class="vansh-ai-name">Vansh AI</div><div class="vansh-ai-status" id="vansh-ai-status">Starting local AI...</div></div></div><button class="vansh-ai-close">×</button></div><div class="vansh-ai-progress"><span id="vansh-ai-progress"></span></div><div class="vansh-ai-messages" id="vansh-ai-messages"></div><div class="vansh-ai-suggestions"><button class="vansh-ai-chip">Tell me about Vansh</button><button class="vansh-ai-chip">What has he built?</button><button class="vansh-ai-chip">Why FitPrint?</button></div><form class="vansh-ai-form"><input class="vansh-ai-input" autocomplete="off" placeholder="Ask Vansh AI anything..."/><button class="vansh-ai-send" type="submit">↑</button></form><div class="vansh-ai-note">Runs locally in your browser. First launch downloads a small open source model.</div>`;document.body.append(launcher,panel);
+    const input=panel.querySelector(".vansh-ai-input"),send=panel.querySelector(".vansh-ai-send"),box=panel.querySelector(".vansh-ai-messages");
+    const add=(role,text,extra="")=>{const x=document.createElement("div");x.className=`vansh-ai-msg ${role} ${extra}`;x.textContent=text;box.appendChild(x);box.scrollTop=box.scrollHeight;return x};
+    const set=(v,t)=>{panel.querySelector("#vansh-ai-progress").style.width=`${Math.max(0,Math.min(100,Math.round(v)))}%`;if(t)panel.querySelector("#vansh-ai-status").textContent=t};
+    const load=async()=>{if(engine)return engine;if(loadingPromise)return loadingPromise;loadingPromise=(async()=>{set(2,"Loading local engine...");const w=await import(WEBLLM_URL);set(6,"Preparing Qwen 0.6B...");engine=await w.CreateMLCEngine(MODEL,{initProgressCallback:r=>{const p=typeof r?.progress==="number"?r.progress*100:0;set(Math.max(6,p),r?.text||"Downloading model...")},logLevel:"ERROR"},{context_window_size:2048,temperature:.45,top_p:.9});set(100,"Ready · running on your device");return engine})().catch(e=>{engine=null;loadingPromise=null;console.error("Vansh AI startup error",e);throw e});return loadingPromise};
+    const ask=async q=>{q=q.trim();if(!q||send.disabled)return;add("user",q);messages.push({role:"user",content:q});input.value="";send.disabled=true;const wait=add("ai","Thinking...","loading");try{const m=await load();wait.remove();const r=await m.chat.completions.create({messages:[{role:"system",content:systemPrompt},...messages.slice(-6)],max_tokens:180,temperature:.45,top_p:.9,stream:false,extra_body:{enable_thinking:false}});const a=r?.choices?.[0]?.message?.content?.trim()||"I couldn't generate an answer.";add("ai",a);messages.push({role:"assistant",content:a})}catch(e){wait.remove();add("ai",e?.message?`Local AI error: ${e.message}`:"Local AI error. WebGPU or the model could not start.");console.error(e)}finally{send.disabled=false;input.focus()}};
+    add("ai","Hey! I'm Vansh AI. Ask me about Vansh, his projects, skills, or this portfolio.");launcher.onclick=()=>{panel.classList.toggle("open");if(panel.classList.contains("open"))input.focus()};panel.querySelector(".vansh-ai-close").onclick=()=>panel.classList.remove("open");panel.querySelector("form").onsubmit=e=>{e.preventDefault();ask(input.value)};panel.querySelectorAll(".vansh-ai-chip").forEach(c=>c.onclick=()=>ask(c.textContent));
   }
-
-  if(document.readyState==="loading") document.addEventListener("DOMContentLoaded",init,{once:true});
-  else init();
+  if(document.readyState==="loading")document.addEventListener("DOMContentLoaded",init,{once:true});else init();
 })();
