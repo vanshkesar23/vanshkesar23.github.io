@@ -8,12 +8,12 @@
   const systemPrompt = `You are Vansh AI, the personal AI assistant on Vansh Kesar's portfolio website.
 You are friendly, concise, natural, and helpful. You speak like a smart student, not like a corporate chatbot.
 Know this portfolio context:
-- Vansh Kesar is a Computer Intelligence student at SRM Institute of Science & Technology.
-- He builds real products using AI, code, and design.
-- Featured projects include FixMyWallet, a gamified personal finance platform, and FitPrint, an AI fashion sizing and recommendation platform.
-- His portfolio focuses on AI, web development, product building, and design.
-- GitHub: github.com/vanshkesar23
-- Email: vk6092@srmist.edu.in
+Vansh Kesar is a Computer Intelligence student at SRM Institute of Science & Technology.
+He builds real products using AI, code, and design.
+Featured projects include FixMyWallet, a gamified personal finance platform, and FitPrint, an AI fashion sizing and recommendation platform.
+His portfolio focuses on AI, web development, product building, and design.
+GitHub: github.com/vanshkesar23
+Email: vk6092@srmist.edu.in
 If a visitor asks about something not covered by the portfolio context, answer normally when you can, but never invent personal facts about Vansh.
 Do not claim to be ChatGPT or OpenAI. You are Vansh AI, a local open source model running in the visitor's browser.
 Keep answers short unless the visitor asks for detail.`;
@@ -28,6 +28,7 @@ Keep answers short unless the visitor asks for detail.`;
   `;
 
   function addStyles() {
+    if (document.getElementById("vansh-ai-styles")) return;
     const style = document.createElement("style");
     style.id = "vansh-ai-styles";
     style.textContent = css;
@@ -79,6 +80,53 @@ Keep answers short unless the visitor asks for detail.`;
     return item;
   }
 
+  async function hasWebGPU() {
+    try {
+      if (!navigator.gpu) return false;
+      const adapter = await navigator.gpu.requestAdapter();
+      return !!adapter;
+    } catch {
+      return false;
+    }
+  }
+
+  async function buildGenerator(pipeline) {
+    const progress = document.getElementById("vansh-ai-progress");
+    const status = document.getElementById("vansh-ai-status");
+    const webgpu = await hasWebGPU();
+
+    if (webgpu) {
+      status.textContent = "Starting GPU model...";
+      try {
+        return await pipeline("text-generation", MODEL, {
+          device: "webgpu",
+          dtype: "q4f16",
+          progress_callback: data => {
+            if (typeof data.progress === "number") {
+              progress.style.width = `${Math.max(8, Math.min(100, Math.round(data.progress)))}%`;
+            }
+          }
+        });
+      } catch (gpuError) {
+        console.warn("Vansh AI WebGPU failed, switching to CPU fallback:", gpuError);
+        status.textContent = "GPU unavailable · switching to CPU...";
+      }
+    } else {
+      status.textContent = "WebGPU unavailable · using CPU...";
+    }
+
+    progress.style.width = "15%";
+    return await pipeline("text-generation", MODEL, {
+      device: "wasm",
+      dtype: "q8",
+      progress_callback: data => {
+        if (typeof data.progress === "number") {
+          progress.style.width = `${Math.max(15, Math.min(100, Math.round(data.progress)))}%`;
+        }
+      }
+    });
+  }
+
   async function loadModel() {
     if (generator) return generator;
     if (loadingPromise) return loadingPromise;
@@ -87,20 +135,11 @@ Keep answers short unless the visitor asks for detail.`;
       const status = document.getElementById("vansh-ai-status");
       const progress = document.getElementById("vansh-ai-progress");
       status.textContent = "Loading local model...";
-      progress.style.width = "8%";
+      progress.style.width = "5%";
 
       const { pipeline, TextStreamer } = await import(TRANSFORMERS_URL);
-      progress.style.width = "22%";
-
-      generator = await pipeline("text-generation", MODEL, {
-        device: "webgpu",
-        dtype: "q4f16",
-        progress_callback: data => {
-          if (typeof data.progress === "number") {
-            progress.style.width = `${Math.max(8, Math.min(100, Math.round(data.progress)))}%`;
-          }
-        }
-      });
+      progress.style.width = "10%";
+      generator = await buildGenerator(pipeline);
 
       progress.style.width = "100%";
       status.textContent = "Ready · running on your device";
@@ -110,7 +149,8 @@ Keep answers short unless the visitor asks for detail.`;
       loadingPromise = null;
       generator = null;
       const status = document.getElementById("vansh-ai-status");
-      status.textContent = "WebGPU unavailable · try Chrome or Safari 18+";
+      status.textContent = "AI could not start · click to retry";
+      console.error("Vansh AI error:", error);
       throw error;
     });
 
@@ -140,6 +180,7 @@ Keep answers short unless the visitor asks for detail.`;
 
       let responseText = "";
       const responseNode = appendMessage("ai", "");
+      const { TextStreamer } = await import(TRANSFORMERS_URL);
       const streamer = new TextStreamer(model.tokenizer, {
         skip_prompt: true,
         skip_special_tokens: true,
@@ -167,8 +208,7 @@ Keep answers short unless the visitor asks for detail.`;
       messages.push({ role: "assistant", content: responseText });
     } catch (error) {
       loading.remove();
-      appendMessage("ai", "I couldn't start the local model on this browser. Try the latest Chrome, Edge, or Safari 18+ with WebGPU enabled.");
-      console.error("Vansh AI error:", error);
+      appendMessage("ai", "I couldn't start the local model. I've added a browser fallback, so please try the message again. If it still fails, open the site in the latest Chrome or Edge and make sure hardware acceleration is enabled.");
     } finally {
       send.disabled = false;
       input.focus();
