@@ -83,47 +83,45 @@ Keep answers short unless the visitor asks for detail.`;
   async function hasWebGPU() {
     try {
       if (!navigator.gpu) return false;
-      const adapter = await navigator.gpu.requestAdapter();
+      const adapter = await navigator.gpu.requestAdapter({ powerPreference: "high-performance" });
       return !!adapter;
     } catch {
       return false;
     }
   }
 
-  async function buildGenerator(pipeline) {
+  function progressHandler(minimum) {
     const progress = document.getElementById("vansh-ai-progress");
+    return data => {
+      if (typeof data.progress === "number") {
+        progress.style.width = `${Math.max(minimum, Math.min(100, Math.round(data.progress)))}%`;
+      }
+    };
+  }
+
+  async function buildGenerator(pipeline) {
     const status = document.getElementById("vansh-ai-status");
     const webgpu = await hasWebGPU();
 
     if (webgpu) {
       status.textContent = "Starting GPU model...";
       try {
+        // q4 is more broadly compatible than q4f16 across WebGPU implementations.
         return await pipeline("text-generation", MODEL, {
           device: "webgpu",
-          dtype: "q4f16",
-          progress_callback: data => {
-            if (typeof data.progress === "number") {
-              progress.style.width = `${Math.max(8, Math.min(100, Math.round(data.progress)))}%`;
-            }
-          }
+          dtype: "q4",
+          progress_callback: progressHandler(8)
         });
       } catch (gpuError) {
         console.warn("Vansh AI WebGPU failed, switching to CPU fallback:", gpuError);
-        status.textContent = "GPU unavailable · switching to CPU...";
       }
-    } else {
-      status.textContent = "WebGPU unavailable · using CPU...";
     }
 
-    progress.style.width = "15%";
+    status.textContent = "Starting CPU model...";
     return await pipeline("text-generation", MODEL, {
       device: "wasm",
       dtype: "q8",
-      progress_callback: data => {
-        if (typeof data.progress === "number") {
-          progress.style.width = `${Math.max(15, Math.min(100, Math.round(data.progress)))}%`;
-        }
-      }
+      progress_callback: progressHandler(15)
     });
   }
 
@@ -208,7 +206,7 @@ Keep answers short unless the visitor asks for detail.`;
       messages.push({ role: "assistant", content: responseText });
     } catch (error) {
       loading.remove();
-      appendMessage("ai", "I couldn't start the local model. I've added a browser fallback, so please try the message again. If it still fails, open the site in the latest Chrome or Edge and make sure hardware acceleration is enabled.");
+      appendMessage("ai", "I couldn't start the local model. Try sending the message once more. If it still fails, Chrome's hardware acceleration or this browser's WebGPU support may be blocking the model.");
     } finally {
       send.disabled = false;
       input.focus();
