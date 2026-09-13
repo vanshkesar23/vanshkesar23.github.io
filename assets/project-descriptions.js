@@ -4,6 +4,22 @@
     FixMyWallet: `FixMyWallet tackles a very Gen Z problem: spending money is easy, but knowing where it went is not. Instead of showing users another boring expense tracker, we turn their transactions into interactive financial cases. Upload your transaction history and the system can turn moments like a late night food delivery or an impulse purchase into cases you have to solve. Solving them helps you understand your spending habits, remember what you actually spent on, and earn XP along the way. Your XP can then unlock rewards and coupons, bringing the fun of apps like Google Pay into personal finance.`,
   };
 
+  function cleanDashPunctuation() {
+    const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
+    const textNodes = [];
+    let node;
+    while ((node = walker.nextNode())) textNodes.push(node);
+
+    textNodes.forEach((textNode) => {
+      const cleaned = textNode.nodeValue.replace(/\s*[—–-]\s*/g, ' ');
+      if (cleaned !== textNode.nodeValue) textNode.nodeValue = cleaned;
+    });
+
+    if (document.title) {
+      document.title = document.title.replace(/\s*[—–-]\s*/g, ' ');
+    }
+  }
+
   function findProjectTitle(title) {
     const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_ELEMENT);
     let node;
@@ -56,6 +72,7 @@
   function enhance() {
     addDescription('FitPrint', projects.FitPrint);
     addDescription('FixMyWallet', projects.FixMyWallet);
+    cleanDashPunctuation();
   }
 
   window.addEventListener('load', () => {
