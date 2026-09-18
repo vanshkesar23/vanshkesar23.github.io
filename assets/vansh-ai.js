@@ -52,7 +52,7 @@ ANSWERING RULES:
 11. Public portfolio information is okay to discuss; do not disclose secrets or sensitive personal information.
 `;
 
-  const css=\`
+  const css=`
 .vansh-ai-launcher{position:fixed;right:26px;bottom:24px;z-index:9998;border:1px solid rgba(255,255,255,.16);background:rgba(12,12,15,.82);backdrop-filter:blur(24px);color:#fff;border-radius:999px;padding:9px 16px 9px 10px;display:flex;align-items:center;gap:9px;font:600 11px Inter,Arial,sans-serif;letter-spacing:.04em;cursor:pointer;box-shadow:0 18px 55px rgba(0,0,0,.5),inset 0 1px 0 rgba(255,255,255,.08);transition:all .3s cubic-bezier(.2,.8,.2,1)}
 .vansh-ai-launcher:hover{transform:translateY(-3px) scale(1.02);border-color:rgba(255,255,255,.32);box-shadow:0 22px 65px rgba(0,0,0,.58),0 0 35px rgba(255,92,70,.1)}
 .vansh-ai-dot{width:8px;height:8px;border-radius:50%;background:#7dffb0;box-shadow:0 0 0 4px rgba(125,255,176,.08),0 0 18px rgba(125,255,176,.9);animation:vanshPulse 2s ease-in-out infinite}
