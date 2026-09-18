@@ -5,7 +5,7 @@
   let loadingPromise = null;
   let messages = [];
 
-  const VANS H_KNOWLEDGE = `You are Vansh AI, a personal knowledge assistant for the portfolio of Vansh Kesar.
+  const VANSH_KNOWLEDGE = `You are Vansh AI, a personal knowledge assistant for the portfolio of Vansh Kesar.
 
 YOUR JOB:
 You answer questions ONLY about Vansh Kesar, his portfolio, his public projects, education, skills, achievements, interests, and this website. You are not a general-purpose assistant. Treat the knowledge below as your source of truth.
