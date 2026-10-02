@@ -1,4 +1,4 @@
-const MODEL = "gemini-3.8-flash";
+const MODEL = "gemini-3.5-flash-lite";
 
 const SYSTEM_INSTRUCTION = `You are Vansh AI, the personal AI assistant inside Vansh Kesar's portfolio.
 
@@ -25,7 +25,7 @@ TECH:
 CONVERSATION STYLE:
 - Be natural, friendly and conversational rather than sounding like an FAQ.
 - Use previous turns to understand follow-up questions.
-- Keep normal answers concise, but expand when asked.
+- Keep normal answers concise, usually 1–4 short sentences.
 - Light humor or an occasional emoji is okay when it fits.
 - Never pretend to be Vansh.
 - Never claim to be ChatGPT, OpenAI or Gemini.
@@ -39,6 +39,7 @@ export default async function handler(req, res) {
   res.setHeader("Access-Control-Allow-Origin", process.env.ALLOWED_ORIGIN || "*");
   res.setHeader("Access-Control-Allow-Headers", "Content-Type");
   res.setHeader("Access-Control-Allow-Methods", "POST, OPTIONS");
+  res.setHeader("Cache-Control", "no-store");
 
   if (req.method === "OPTIONS") return res.status(204).end();
   if (req.method !== "POST") return res.status(405).json({ error: "Method not allowed" });
@@ -48,31 +49,40 @@ export default async function handler(req, res) {
     const incoming = Array.isArray(req.body?.messages) ? req.body.messages : [];
     const history = incoming
       .filter(m => (m?.role === "user" || m?.role === "model") && typeof m?.content === "string")
-      .slice(-12)
+      .slice(-8)
       .map(m => ({
         role: m.role,
-        parts: [{ text: m.content.slice(0, 6000) }]
+        parts: [{ text: m.content.slice(0, 3000) }]
       }));
 
     if (!history.length || history[history.length - 1].role !== "user") {
       return res.status(400).json({ error: "A user message is required." });
     }
 
-    const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${MODEL}:generateContent`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "x-goog-api-key": process.env.GEMINI_API_KEY
-      },
-      body: JSON.stringify({
-        system_instruction: { parts: [{ text: SYSTEM_INSTRUCTION }] },
-        contents: history,
-        generationConfig: {
-          thinkingConfig: { thinkingLevel: "low" },
-          maxOutputTokens: 700
-        }
-      })
-    });
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 8000);
+
+    let response;
+    try {
+      response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${MODEL}:generateContent`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "x-goog-api-key": process.env.GEMINI_API_KEY
+        },
+        body: JSON.stringify({
+          system_instruction: { parts: [{ text: SYSTEM_INSTRUCTION }] },
+          contents: history,
+          generationConfig: {
+            thinkingConfig: { thinkingLevel: "minimal" },
+            maxOutputTokens: 300
+          }
+        }),
+        signal: controller.signal
+      });
+    } finally {
+      clearTimeout(timeout);
+    }
 
     const data = await response.json();
     if (!response.ok) {
